@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DRIVE SMART – 3D Driving Simulator Prototype</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #0f172a;
+            color: #ffffff;
+        }
+
+        #game-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        /* HUD Layer */
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 24px;
+        }
+
+        /* Top Bar */
+        .hud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .title-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px 20px;
+        }
+
+        .title-card h1 {
+            font-size: 20px;
+            font-weight: 900;
+            letter-spacing: 1px;
+            color: #38bdf8;
+        }
+
+        .title-card p {
+            font-size: 12px;
+            color: #94a3b8;
+            margin-top: 2px;
+        }
+
+        .stats-badge {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 12px 20px;
+            text-align: right;
+        }
+
+        .stats-badge .lbl {
+            font-size: 11px;
+            color: #94a3b8;
+            text-transform: uppercase;
+        }
+
+        .stats-badge .val {
+            font-size: 22px;
+            font-weight: 900;
+            color: #f59e0b;
+        }
+
+        /* Collision Notification */
+        #alert-box {
+            position: absolute;
+            top: 90px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(239, 68, 68, 0.9);
+            color: #ffffff;
+            font-weight: 800;
+            font-size: 16px;
+            padding: 10px 24px;
+            border-radius: 30px;
+            box-shadow: 0 4px 20px rgba(239, 68, 68, 0.5);
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+
+        #alert-box.show {
+            opacity: 1;
+        }
+
+        /* Bottom HUD */
+        .hud-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            width: 100%;
+        }
+
+        /* Controls Help Box */
+        .controls-card {
+            background: rgba(15, 23, 42, 0.85);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 12px;
+            padding: 14px 20px;
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+        }
+
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        kbd {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            font-family: monospace;
+            border: 1px solid rgba(255, 255, 255, 0.25);
+        }
+
+        /* Speedometer Instrument */
+        .speedo-card {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 16px 24px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .speedo-main {
+            text-align: center;
+        }
+
+        .speedo-num {
+            font-size: 42px;
+            font-weight: 900;
+            line-height: 1;
+            font-family: monospace;
+            color: #38bdf8;
+        }
+
+        .speedo-unit {
+            font-size: 11px;
+            color: #94a3b8;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        .speedo-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            border-left: 1px solid rgba(255, 255, 255, 0.15);
+            padding-left: 18px;
+        }
+
+        .gear-pill {
+            background: rgba(56, 189, 248, 0.15);
+            border: 1px solid #38bdf8;
+            color: #38bdf8;
+            padding: 2px 10px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 900;
+            text-align: center;
+            font-family: monospace;
+        }
+
+        .speed-bar-bg {
+            width: 90px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 3px;
+            overflow: hidden;
+            margin-top: 4px;
+        }
+
+        .speed-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #38bdf8, #f59e0b, #ef4444);
+            transition: width 0.05s linear;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="game-canvas"></canvas>
+
+    <div id="hud">
+        <!-- Top Bar -->
+        <div class="hud-header">
+            <div class="title-card">
+                <h1>DRIVE SMART</h1>
+                <p>Playable Driving Academy Prototype</p>
+            </div>
+            <div class="stats-badge">
+                <div class="lbl">Obstacles Hit</div>
+                <div class="val" id="cone-counter">0</div>
+            </div>
+        </div>
+
+        <!-- Alert Notification -->
+        <div id="alert-box">⚠️ Cone Hit! Slow down and maintain clearance.</div>
+
+        <!-- Bottom Controls & Speedometer -->
+        <div class="hud-bottom">
+            <div class="controls-card">
+                <div class="control-item"><kbd>W</kbd> / <kbd>↑</kbd> Accelerate</div>
+                <div class="control-item"><kbd>S</kbd> / <kbd>↓</kbd> Brake / Rev</div>
+                <div class="control-item"><kbd>A</kbd><kbd>D</kbd> / <kbd>←</kbd><kbd>→</kbd> Steer</div>
+                <div class="control-item"><kbd>SPACE</kbd> Handbrake</div>
+                <div class="control-item"><kbd>R</kbd> Reset</div>
+            </div>
+
+            <div class="speedo-card">
+                <div class="speedo-main">
+                    <div class="speedo-num" id="speed-display">0</div>
+                    <div class="speedo-unit">KM/H</div>
+                </div>
+                <div class="speedo-meta">
+                    <div class="gear-pill" id="gear-display">P</div>
+                    <div class="speed-bar-bg">
+                        <div class="speed-bar-fill" id="speed-bar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Local Three.js -->
+    <script src="lib/three.min.js"></script>
+
+    <script>
+        // ==========================================
+        // 1. WEB AUDIO SYNTHESIZER (ZERO ASSET FILES)
+        // ==========================================
+        class SimpleAudio {
+            constructor() {
+                this.ctx = null;
+                this.engineOsc = null;
+                this.engineGain = null;
+            }
+
+            init() {
+                if (this.ctx) return;
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    this.ctx = new AudioContext();
+
+                    // Engine rumble oscillator
+                    this.engineOsc = this.ctx.createOscillator();
+                    this.engineOsc.type = 'triangle';
+                    this.engineOsc.frequency.setValueAtTime(45, this.ctx.currentTime);
+
+                    this.engineGain = this.ctx.createGain();
+                    this.engineGain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+
+                    this.engineOsc.connect(this.engineGain);
+                    this.engineGain.connect(this.ctx.destination);
+                    this.engineOsc.start();
+                } catch(e) {}
+            }
+
+            updateEngine(speedRatio) {
+                if (!this.ctx || !this.engineOsc) return;
+                if (this.ctx.state === 'suspended') this.ctx.resume();
+                // Pitch rises smoothly from 45Hz to 160Hz
+                const freq = 45 + (speedRatio * 115);
+                this.engineOsc.frequency.setTargetAtTime(freq, this.ctx.currentTime, 0.05);
+            }
+
+            playHit() {
+                if (!this.ctx) return;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.2);
+            }
+        }
+        const audio = new SimpleAudio();
+
+        // ==========================================
+        // 2. THREE.JS SCENE SETUP
+        // ==========================================
+        const canvas = document.getElementById('game-canvas');
+        const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+        renderer.shadowMap.enabled = true;
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Clear sky blue
+        scene.fog = new THREE.Fog(0x87ceeb, 120, 450);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+        scene.add(ambientLight);
+
+        const sunLight = new THREE.DirectionalLight(0xfff5e6, 1.1);
+        sunLight.position.set(50, 80, 40);
+        sunLight.castShadow = true;
+        sunLight.shadow.mapSize.width = 1024;
+        sunLight.shadow.mapSize.height = 1024;
+        const d = 50;
+        sunLight.shadow.camera.left = -d;
+        sunLight.shadow.camera.right = d;
+        sunLight.shadow.camera.top = d;
+        sunLight.shadow.camera.bottom = -d;
+        scene.add(sunLight);
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // ==========================================
+        // 3. ROAD & ENVIRONMENT (SIMPLE 3D GEOMETRY)
+        // ==========================================
+        // Ground Grass
+        const groundGeo = new THREE.PlaneGeometry(800, 800);
+        const groundMat = new THREE.MeshLambertMaterial({ color: 0x3d7e42 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.05;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // Main Road Surface (14m wide x 600m long)
+        const roadLength = 600;
+        const roadWidth = 14;
+        const roadGeo = new THREE.PlaneGeometry(roadWidth, roadLength);
+        const roadMat = new THREE.MeshLambertMaterial({ color: 0x22252a });
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI / 2;
+        road.receiveShadow = true;
+        scene.add(road);
+
+        // Road Markings (Pure 3D geometry - NO image textures needed!)
+        const markingsGroup = new THREE.Group();
+
+        // Double yellow center divider (Indian Left-Hand traffic style)
+        const yellowMat = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+        const centerLineGeo = new THREE.PlaneGeometry(0.2, roadLength);
+        
+        const centerLine1 = new THREE.Mesh(centerLineGeo, yellowMat);
+        centerLine1.rotation.x = -Math.PI / 2;
+        centerLine1.position.set(-0.25, 0.01, 0);
+        markingsGroup.add(centerLine1);
+
+        const centerLine2 = new THREE.Mesh(centerLineGeo, yellowMat);
+        centerLine2.rotation.x = -Math.PI / 2;
+        centerLine2.position.set(0.25, 0.01, 0);
+        markingsGroup.add(centerLine2);
+
+        // White edge boundary lines
+        const whiteMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+        const edgeLineGeo = new THREE.PlaneGeometry(0.25, roadLength);
+
+        const edgeLeft = new THREE.Mesh(edgeLineGeo, whiteMat);
+        edgeLeft.rotation.x = -Math.PI / 2;
+        edgeLeft.position.set(-roadWidth * 0.5 + 0.35, 0.01, 0);
+        markingsGroup.add(edgeLeft);
+
+        const edgeRight = new THREE.Mesh(edgeLineGeo, whiteMat);
+        edgeRight.rotation.x = -Math.PI / 2;
+        edgeRight.position.set(roadWidth * 0.5 - 0.35, 0.01, 0);
+        markingsGroup.add(edgeRight);
+
+        // Dashed white inner lane lines
+        const dashGeo = new THREE.PlaneGeometry(0.18, 3.5);
+        for (let z = -roadLength * 0.5 + 10; z < roadLength * 0.5; z += 9.0) {
+            // Left lane divider
+            const dashL = new THREE.Mesh(dashGeo, whiteMat);
+            dashL.rotation.x = -Math.PI / 2;
+            dashL.position.set(-3.5, 0.01, z);
+            markingsGroup.add(dashL);
+
+            // Right lane divider
+            const dashR = new THREE.Mesh(dashGeo, whiteMat);
+            dashR.rotation.x = -Math.PI / 2;
+            dashR.position.set(3.5, 0.01, z);
+            markingsGroup.add(dashR);
+        }
+
+        // Curbs (Sidewalk edge blocks)
+        const curbMat = new THREE.MeshLambertMaterial({ color: 0x94a3b8 });
+        const curbGeo = new THREE.BoxGeometry(0.4, 0.25, roadLength);
+        const curbL = new THREE.Mesh(curbGeo, curbMat);
+        curbL.position.set(-roadWidth * 0.5 - 0.2, 0.1, 0);
+        markingsGroup.add(curbL);
+
+        const curbR = new THREE.Mesh(curbGeo, curbMat);
+        curbR.position.set(roadWidth * 0.5 + 0.2, 0.1, 0);
+        markingsGroup.add(curbR);
+
+        scene.add(markingsGroup);
+
+        // Simple roadside trees (cylinders + spheres)
+        for (let z = -250; z <= 250; z += 35) {
+            const createTree = (x, zPos) => {
+                const tree = new THREE.Group();
+                const trunk = new THREE.Mesh(
+                    new THREE.CylinderGeometry(0.25, 0.35, 2.5, 8),
+                    new THREE.MeshLambertMaterial({ color: 0x5c3a21 })
+                );
+                trunk.position.y = 1.25;
+                trunk.castShadow = true;
+                tree.add(trunk);
+
+                const foliage = new THREE.Mesh(
+                    new THREE.SphereGeometry(1.6, 8, 8),
+                    new THREE.MeshLambertMaterial({ color: 0x2e7d32 })
+                );
+                foliage.position.y = 3.2;
+                foliage.castShadow = true;
+                tree.add(foliage);
+
+                tree.position.set(x, 0, zPos);
+                scene.add(tree);
+            };
+            createTree(-12, z);
+            createTree(12, z);
+        }
+
+        // ==========================================
+        // 4. OBSTACLE CONES (TRAFFIC SLALOM CONES)
+        // ==========================================
+        const cones = [];
+        const conePositions = [
+            { x: -3.5, z: 25 },
+            { x: -1.5, z: 50 },
+            { x: -4.5, z: 75 },
+            { x: -2.0, z: 100 },
+            { x: -4.0, z: 125 },
+            { x: -1.0, z: 150 },
+            { x: -3.5, z: 180 },
+            { x: -5.0, z: 210 },
+            { x: -2.5, z: 240 }
+        ];
+
+        const coneMat = new THREE.MeshLambertMaterial({ color: 0xff5500 }); // Bright Traffic Orange
+        const coneBaseMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+        const coneStripeMat = new THREE.MeshLambertMaterial({ color: 0xffffff });
+
+        conePositions.forEach(pos => {
+            const coneGroup = new THREE.Group();
+
+            // Black rubber square base
+            const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.7), coneBaseMat);
+            base.position.y = 0.04;
+            base.castShadow = true;
+            coneGroup.add(base);
+
+            // Orange cone
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.95, 12), coneMat);
+            cone.position.y = 0.52;
+            cone.castShadow = true;
+            coneGroup.add(cone);
+
+            // White reflective stripe
+            const stripe = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.25, 0.22, 12), coneStripeMat);
+            stripe.position.y = 0.50;
+            coneGroup.add(stripe);
+
+            coneGroup.position.set(pos.x, 0, pos.z);
+            scene.add(coneGroup);
+
+            cones.push({
+                group: coneGroup,
+                x: pos.x,
+                z: pos.z,
+                radius: 0.45,
+                hit: false,
+                knockOver: function() {
+                    if (!this.hit) {
+                        this.hit = true;
+                        this.group.rotation.x = 1.35;
+                        this.group.position.y = 0.12;
+                    }
+                }
+            });
+        });
+
+        // ==========================================
+        // 5. 3D CAR MODEL (SIMPLE PROCEDURAL SHAPES)
+        // ==========================================
+        const carGroup = new THREE.Group();
+
+        // Chassis (Lower Body)
+        const carBodyMat = new THREE.MeshLambertMaterial({ color: 0xd32f2f }); // Red
+        const body = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.65, 4.0), carBodyMat);
+        body.position.y = 0.65;
+        body.castShadow = true;
+        carGroup.add(body);
+
+        // Cabin (Upper Greenhouse)
+        const cabinMat = new THREE.MeshLambertMaterial({ color: 0x1e293b }); // Tinted Dark Glass
+        const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.65, 2.2), cabinMat);
+        cabin.position.set(0, 1.25, -0.2);
+        cabin.castShadow = true;
+        carGroup.add(cabin);
+
+        // Academy Roof Sign "L"
+        const roofBox = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.25, 0.35), new THREE.MeshLambertMaterial({ color: 0xffffff }));
+        roofBox.position.set(0, 1.7, -0.2);
+        carGroup.add(roofBox);
+
+        // Front Headlights
+        const hlMat = new THREE.MeshBasicMaterial({ color: 0xffffee });
+        const hlL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.05), hlMat);
+        hlL.position.set(-0.65, 0.7, 2.01);
+        carGroup.add(hlL);
+        const hlR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.15, 0.05), hlMat);
+        hlR.position.set(0.65, 0.7, 2.01);
+        carGroup.add(hlR);
+
+        // Rear Taillights (glow red on brake!)
+        const tailMat = new THREE.MeshBasicMaterial({ color: 0x880000 });
+        const tlL = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.05), tailMat);
+        tlL.position.set(-0.65, 0.7, -2.01);
+        carGroup.add(tlL);
+        const tlR = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.15, 0.05), tailMat);
+        tlR.position.set(0.65, 0.7, -2.01);
+        carGroup.add(tlR);
+
+        // 4 Wheels
+        const wheelGeo = new THREE.CylinderGeometry(0.35, 0.35, 0.24, 16);
+        wheelGeo.rotateZ(Math.PI / 2);
+        const wheelMat = new THREE.MeshLambertMaterial({ color: 0x111111 });
+
+        const createWheel = (x, z) => {
+            const pivot = new THREE.Group();
+            const mesh = new THREE.Mesh(wheelGeo, wheelMat);
+            mesh.castShadow = true;
+            pivot.add(mesh);
+            pivot.position.set(x, 0.35, z);
+            carGroup.add(pivot);
+            return { pivot, mesh };
+        };
+
+        const wheelFL = createWheel(-0.95, 1.3);
+        const wheelFR = createWheel(0.95, 1.3);
+        const wheelRL = createWheel(-0.95, -1.3);
+        const wheelRR = createWheel(0.95, -1.3);
+
+        scene.add(carGroup);
+
+        // ==========================================
+        // 6. DRIVING PHYSICS ENGINE
+        // ==========================================
+        const physics = {
+            x: -3.5, // Indian Left-Hand Driving lane!
+            y: 0,
+            z: -40,
+            heading: 0, // radians
+            velocity: 0, // m/s
+            steerAngle: 0,
+            maxSpeed: 80 / 3.6, // ~22.2 m/s (80 km/h)
+            maxReverse: 20 / 3.6, // ~5.5 m/s
+            accel: 14.0,
+            brake: 22.0,
+            steerSpeed: 3.5,
+            wheelRoll: 0,
+
+            reset: function() {
+                this.x = -3.5;
+                this.z = -40;
+                this.heading = 0;
+                this.velocity = 0;
+                this.steerAngle = 0;
+            }
+        };
+
+        // ==========================================
+        // 7. KEYBOARD CONTROLS (WASD & ARROWS)
+        // ==========================================
+        const keys = {
+            forward: false,
+            backward: false,
+            left: false,
+            right: false,
+            handbrake: false
+        };
+
+        window.addEventListener('keydown', (e) => {
+            audio.init(); // Auto start audio on user action
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(e.code)) {
+                e.preventDefault();
+            }
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = true;
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = true;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = true;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = true;
+            if (e.code === 'Space') keys.handbrake = true;
+            if (e.code === 'KeyR') physics.reset();
+        });
+
+        window.addEventListener('keyup', (e) => {
+            if (e.code === 'KeyW' || e.code === 'ArrowUp') keys.forward = false;
+            if (e.code === 'KeyS' || e.code === 'ArrowDown') keys.backward = false;
+            if (e.code === 'KeyA' || e.code === 'ArrowLeft') keys.left = false;
+            if (e.code === 'KeyD' || e.code === 'ArrowRight') keys.right = false;
+            if (e.code === 'Space') keys.handbrake = false;
+        });
+
+        // ==========================================
+        // 8. COLLISION DETECTION & GAME STATE
+        // ==========================================
+        let coneHits = 0;
+        const alertBox = document.getElementById('alert-box');
+        const coneCounterEl = document.getElementById('cone-counter');
+        const speedDisplayEl = document.getElementById('speed-display');
+        const gearDisplayEl = document.getElementById('gear-display');
+        const speedBarEl = document.getElementById('speed-bar');
+
+        let alertTimeout = null;
+        function showAlert(msg) {
+            alertBox.textContent = msg;
+            alertBox.classList.add('show');
+            clearTimeout(alertTimeout);
+            alertTimeout = setTimeout(() => alertBox.classList.remove('show'), 2000);
+        }
+
+        // ==========================================
+        // 9. ANIMATION & PHYSICS LOOP
+        // ==========================================
+        let lastTime = performance.now();
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const now = performance.now();
+            const dt = Math.min((now - lastTime) / 1000, 0.05); // clamp dt
+            lastTime = now;
+
+            // 1. Acceleration & Braking
+            let currentAccel = 0;
+            let isBraking = false;
+
+            if (keys.forward) {
+                if (physics.velocity < -0.1) {
+                    // Braking reverse
+                    currentAccel = physics.brake;
+                    isBraking = true;
+                } else {
+                    // Accelerate forward
+                    currentAccel = physics.accel * (1.0 - (physics.velocity / physics.maxSpeed) * 0.85);
+                }
+            } else if (keys.backward) {
+                if (physics.velocity > 0.1) {
+                    // Braking forward
+                    currentAccel = -physics.brake;
+                    isBraking = true;
+                } else {
+                    // Reverse
+                    currentAccel = -physics.accel * 0.65;
+                }
+            } else {
+                // Natural deceleration / engine braking
+                if (physics.velocity > 0.1) currentAccel = -4.0;
+                else if (physics.velocity < -0.1) currentAccel = 4.0;
+                else physics.velocity = 0;
+            }
+
+            // Handbrake
+            if (keys.handbrake) {
+                isBraking = true;
+                if (physics.velocity > 0) currentAccel = -physics.brake * 1.6;
+                else if (physics.velocity < 0) currentAccel = physics.brake * 1.6;
+            }
+
+            // Apply acceleration
+            const prevVel = physics.velocity;
+            physics.velocity += currentAccel * dt;
+
+            // Stop at 0 when braking
+            if ((prevVel > 0 && physics.velocity < 0 && !keys.backward) ||
+                (prevVel < 0 && physics.velocity > 0 && !keys.forward)) {
+                physics.velocity = 0;
+            }
+
+            // Clamp speeds
+            if (physics.velocity > physics.maxSpeed) physics.velocity = physics.maxSpeed;
+            if (physics.velocity < -physics.maxReverse) physics.velocity = -physics.maxReverse;
+
+            // 2. Dynamic Steering (speed sensitive)
+            let targetSteer = 0;
+            if (keys.left) targetSteer += 1.0;
+            if (keys.right) targetSteer -= 1.0;
+            physics.steerAngle += (targetSteer - physics.steerAngle) * dt * physics.steerSpeed;
+
+            // Heading update (Turning car)
+            if (Math.abs(physics.velocity) > 0.1) {
+                const turnFactor = (physics.velocity / 2.6) * physics.steerAngle;
+                physics.heading += turnFactor * dt;
+            }
+
+            // Move Car in 3D Space
+            physics.x += Math.sin(physics.heading) * (physics.velocity * dt);
+            physics.z += Math.cos(physics.heading) * (physics.velocity * dt);
+
+            // 3. Update 3D Car Mesh
+            carGroup.position.set(physics.x, 0, physics.z);
+            carGroup.rotation.y = physics.heading;
+
+            // Front wheels steering turn
+            const visualSteer = -physics.steerAngle * 0.45;
+            wheelFL.pivot.rotation.y = visualSteer;
+            wheelFR.pivot.rotation.y = visualSteer;
+
+            // All 4 wheels roll with motion
+            physics.wheelRoll += physics.velocity * dt * 3.0;
+            wheelFL.mesh.rotation.x = physics.wheelRoll;
+            wheelFR.mesh.rotation.x = physics.wheelRoll;
+            wheelRL.mesh.rotation.x = physics.wheelRoll;
+            wheelRR.mesh.rotation.x = physics.wheelRoll;
+
+            // Brake Taillight illumination
+            tailMat.color.setHex(isBraking ? 0xff0000 : 0x770000);
+
+            // 4. Collision Detection against Cones
+            cones.forEach(cone => {
+                if (!cone.hit) {
+                    const dist = Math.hypot(physics.x - cone.x, physics.z - cone.z);
+                    if (dist < (cone.radius + 1.1)) {
+                        cone.knockOver();
+                        coneHits++;
+                        coneCounterEl.textContent = coneHits;
+                        showAlert(`⚠️ Cone Hit! Slow down and maintain clearance. (Total: ${coneHits})`);
+                        audio.playHit();
+                        // Slight collision bump slowing vehicle
+                        physics.velocity *= 0.75;
+                    }
+                }
+            });
+
+            // 5. Third-Person Chase Camera
+            const camDistance = 6.2;
+            const camHeight = 2.4;
+            const targetCamX = physics.x - Math.sin(physics.heading) * camDistance;
+            const targetCamZ = physics.z - Math.cos(physics.heading) * camDistance;
+            const targetCamY = physics.y + camHeight;
+
+            // Smooth camera interpolation
+            camera.position.x += (targetCamX - camera.position.x) * dt * 8.0;
+            camera.position.y += (targetCamY - camera.position.y) * dt * 8.0;
+            camera.position.z += (targetCamZ - camera.position.z) * dt * 8.0;
+
+            // Look slightly ahead of car
+            const lookX = physics.x + Math.sin(physics.heading) * 4.0;
+            const lookZ = physics.z + Math.cos(physics.heading) * 4.0;
+            camera.lookAt(lookX, 1.2, lookZ);
+
+            // 6. Update HUD Speedometer & Gear
+            const speedKmh = Math.abs(physics.velocity * 3.6);
+            speedDisplayEl.textContent = Math.round(speedKmh);
+
+            // Speed gauge bar
+            const speedPercent = Math.min(100, (speedKmh / 80) * 100);
+            speedBarEl.style.width = `${speedPercent}%`;
+
+            // Gear Display (P, R, D)
+            if (physics.velocity < -0.1) {
+                gearDisplayEl.textContent = 'R';
+                gearDisplayEl.style.color = '#ef4444';
+                gearDisplayEl.style.borderColor = '#ef4444';
+            } else if (Math.abs(physics.velocity) < 0.1 && !keys.forward && !keys.backward) {
+                gearDisplayEl.textContent = keys.handbrake ? 'P' : 'N';
+                gearDisplayEl.style.color = '#94a3b8';
+                gearDisplayEl.style.borderColor = '#94a3b8';
+            } else {
+                gearDisplayEl.textContent = speedKmh > 40 ? 'D2' : 'D1';
+                gearDisplayEl.style.color = '#38bdf8';
+                gearDisplayEl.style.borderColor = '#38bdf8';
+            }
+
+            // Audio pitch update
+            audio.updateEngine(speedKmh / 80);
+
+            // Render 3D Frame
+            renderer.render(scene, camera);
+        }
+
+        // Start Loop
+        requestAnimationFrame(animate);
+
+        // Expose global for testing
+        window.simulator = {
+            physics,
+            cones,
+            getHits: () => coneHits
+        };
+    </script>
+</body>
+</html>
